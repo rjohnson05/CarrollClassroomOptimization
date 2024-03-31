@@ -13,11 +13,11 @@ class Optimizer:
         self.CROSSOVER_RATE = 0.8
         self.MUTATION_RATE = 0.2
 
-        # self.classroom_list, self.course_list, self.instructor_list = self.upload_data()
+        self.classroom_list, self.course_list, self.instructor_list = self.upload_data()
 
-        self.classroom_list = ['SIMP-120', 'SIMP-200', 'SIMP-300', 'SIMP-400', 'OCON-123', 'STCH-343', 'STCH-234']
-        self.course_list = ['CS-1', 'CS-1', 'CS-1', 'CS-1', 'CS-1', 'CS-1', 'CS-1', 'CS-1', 'CS-1']
-        self.instructor_list = {"Nate Williams": [1, 2], "Ted Wendt": [3, 4], "Jodi Fasteen": [5, 6, 7]}
+        # self.classroom_list = ['SIMP-120', 'SIMP-200', 'SIMP-300', 'SIMP-400', 'OCON-123', 'STCH-343', 'STCH-234']
+        # self.course_list = ['CS-1', 'CS-2', 'CS-3', 'CS-4', 'CS-5', 'CS61', 'CS-7']
+        # self.instructor_list = {"Nate Williams": [1, 2], "Ted Wendt": [3, 4], "Jodi Fasteen": [5, 6, 7]}
 
         self.population = self.form_population(self.POPULATION_SIZE)
         self.average_fitness = 0
@@ -37,9 +37,6 @@ class Optimizer:
         # Find all unique professor names
         prof_names = df["SEC_FACULTY_INFO"].unique()
         prof_dict = {}
-        # for i in range(len(prof_names)):
-        #     prof_dict[prof_names[i]] = df["SEC_SHORT_TITLE"][df["SEC_FACULTY_INFO"] == prof_names[i]].unique()
-        #     print(f"Uploading Schedule Data: {i/len(prof_names) * 100}% Complete")
         prof_dict = {name: df["SEC_SHORT_TITLE"][df["SEC_FACULTY_INFO"] == name].unique() for name in prof_names}
 
         return classroom_names, course_names, prof_dict
@@ -60,10 +57,6 @@ class Optimizer:
         @param: Schedule object to be evaluated
         @return: Fitness score for the Schedule object, with larger scores being better
         """
-        # Doesn't recalculate the fitness score if it's been calculated previously
-        if schedule.fitness != 0:
-            return schedule.fitness
-
         # Penalizes for using more classrooms
         num_classrooms_used = 0
         for classroom in schedule.schedule:
@@ -98,7 +91,6 @@ class Optimizer:
                 continue
             fitness -= 1
 
-        all_week_penalty = 0
         # Penalizes for assigning a course to both MWF and Tth
         for classroom in schedule.schedule:
             for monday_time_block in classroom[0:schedule.MONDAY_TIME_SLOTS]:
@@ -106,6 +98,7 @@ class Optimizer:
                     if monday_time_block == tuesday_time_block:
                         fitness -= 1
                         break
+
         schedule.fitness = fitness
         return fitness
 
@@ -150,17 +143,6 @@ class Optimizer:
         parent2 = self.tournament_selection()
         return parent1, parent2
 
-        # parents = []
-        # for i in range(2):
-        #     rand_num = random.uniform(0, 1)
-        #     roulette_prob = 0
-        #     for schedule in self.population:
-        #         roulette_prob += schedule.selection_prob
-        #         if roulette_prob > rand_num:
-        #             parents.append(schedule)
-        #             break
-        return parents
-
     def crossover(self, parents):
         """
         Mixes the genomes of two parent schedules to create a new schedule genome. For each classroom in the parent
@@ -177,91 +159,47 @@ class Optimizer:
 
         crossover_point = random.randint(0, len(parent1.schedule) - 1)
         child_genome = parent1.schedule[:crossover_point] + parent2.schedule[crossover_point:]
-        return child_genome
 
-        # # Combine MWF schedule from 1st parent and Tth schedule from 2nd parent
-        # child_genome = []
-        # for i in range(len(parent1.schedule)):
-        #     num_timeblocks = len(parent1.schedule[i])
-        #     monday_schedule = parent1.schedule[i][0:parent1.MONDAY_TIME_SLOTS]
-        #     tuesday_schedule = parent2.schedule[i][parent2.MONDAY_TIME_SLOTS:
-        #                                            parent2.MONDAY_TIME_SLOTS + parent1.TUESDAY_TIME_SLOTS]
-        #     wednesday_schedule = parent1.schedule[i][parent1.MONDAY_TIME_SLOTS + parent1.TUESDAY_TIME_SLOTS:
-        #                                              parent1.MONDAY_TIME_SLOTS + parent1.TUESDAY_TIME_SLOTS +
-        #                                              parent1.WEDNESDAY_TIME_SLOTS]
-        #     thursday_schedule = parent2.schedule[i][parent1.MONDAY_TIME_SLOTS + parent1.TUESDAY_TIME_SLOTS +
-        #                                             parent2.WEDNESDAY_TIME_SLOTS:
-        #                                             parent2.MONDAY_TIME_SLOTS + parent2.TUESDAY_TIME_SLOTS +
-        #                                             parent2.WEDNESDAY_TIME_SLOTS + parent2.THURSDAY_TIME_SLOTS]
-        #     friday_schedule = parent1.schedule[i][parent1.MONDAY_TIME_SLOTS + parent1.TUESDAY_TIME_SLOTS +
-        #                                           parent1.WEDNESDAY_TIME_SLOTS + parent1.THURSDAY_TIME_SLOTS:
-        #                                           parent1.MONDAY_TIME_SLOTS + parent1.TUESDAY_TIME_SLOTS +
-        #                                           parent1.WEDNESDAY_TIME_SLOTS + parent1.THURSDAY_TIME_SLOTS +
-        #                                           parent1.FRIDAY_TIME_SLOTS]
-        #
-        #
-        #     # parent1_half = parent1.schedule[i][0:(round(num_timeblocks / 2))]
-        #     # parent2_half = parent2.schedule[i][(round(num_timeblocks / 2)): num_timeblocks]
-        #     child_genome.append(monday_schedule + tuesday_schedule + wednesday_schedule + thursday_schedule + friday_schedule)
-        # return child_genome
+        return child_genome
 
     def mutate(self, schedule: Schedule):
         """
-        Mutates a single schedule genome by swapping the times of two courses placed in a classroom
+        Mutates two schedule genomes by moving a random course from a lesser used classroom to a greater used classroom,
+        moving toward fewer classrooms being used.
 
         :param schedule: Schedule object to be mutated
         """
         if random.random() < self.MUTATION_RATE:
-            classroom_index = random.randint(0, len(schedule.schedule) - 1)
-            time_block_index1, time_block_index2 = random.sample(range(len(schedule.schedule[classroom_index])), 2)
-            schedule.schedule[classroom_index][time_block_index1], schedule.schedule[classroom_index][
-                time_block_index2] = (
-                schedule.schedule[classroom_index][time_block_index2],
-                schedule.schedule[classroom_index][time_block_index1])
+            return
 
-            # random_classroom_index = random.randint(0, len(self.classroom_list) - 1)
-        # # Pick a random time slot on Monday or Tuesday to mutate
-        # both_time_slots = []
-        # first_time_slot = random.randint(0, schedule.MONDAY_TIME_SLOTS + schedule.TUESDAY_TIME_SLOTS - 1)
-        # # If the chosen time index falls within the time slots for Monday, the other time slot to mutate must be on
-        # # Monday
-        # if first_time_slot < schedule.MONDAY_TIME_SLOTS:
-        #     second_time_slot = first_time_slot
-        #     while second_time_slot == first_time_slot:
-        #         second_time_slot = random.randint(0, schedule.MONDAY_TIME_SLOTS - 1)
-        #     # Find the corresponding time slots on Wednesday & Friday for the two chosen Monday time slots
-        #     for time_slot in [first_time_slot, second_time_slot]:
-        #         monday_slot_index = time_slot
-        #         wednesday_slot_index = monday_slot_index + (
-        #                 schedule.MONDAY_TIME_SLOTS - monday_slot_index) + schedule.TUESDAY_TIME_SLOTS + monday_slot_index
-        #         friday_slot_index = wednesday_slot_index + (
-        #                 schedule.WEDNESDAY_TIME_SLOTS - monday_slot_index) + schedule.THURSDAY_TIME_SLOTS + monday_slot_index
-        #         time_slot_list = [monday_slot_index, wednesday_slot_index, friday_slot_index]
-        #         both_time_slots.append(time_slot_list)
-        #
-        # # If the chosen time index falls within the time slots for Tuesday, the other time slot to mutate must be on
-        # # Tuesday
-        # elif first_time_slot < schedule.MONDAY_TIME_SLOTS + schedule.TUESDAY_TIME_SLOTS:
-        #     second_time_slot = first_time_slot
-        #     while second_time_slot == first_time_slot:
-        #         second_time_slot = random.randint(schedule.MONDAY_TIME_SLOTS,
-        #                                           schedule.MONDAY_TIME_SLOTS + schedule.TUESDAY_TIME_SLOTS - 1)
-        #     # Find the corresponding time slots on Wednesday & Friday for the two chosen Monday time slots
-        #     for time_slot in [first_time_slot, second_time_slot]:
-        #         tuesday_slot_index = time_slot
-        #         thursday_slot_index = (
-        #                 tuesday_slot_index + (
-        #                 schedule.TUESDAY_TIME_SLOTS - (tuesday_slot_index - schedule.MONDAY_TIME_SLOTS)) +
-        #                 schedule.WEDNESDAY_TIME_SLOTS + (tuesday_slot_index - schedule.MONDAY_TIME_SLOTS))
-        #         time_slot_list = [tuesday_slot_index, thursday_slot_index]
-        #         both_time_slots.append(time_slot_list)
-        #
-        # # Swap the courses for the two randomly chosen time slots
-        # for time_slot_index in range(len(both_time_slots[0])):
-        #     second_time_slot_course = schedule.schedule[random_classroom_index][both_time_slots[1][time_slot_index]]
-        #     first_time_slot_course = schedule.schedule[random_classroom_index][both_time_slots[0][time_slot_index]]
-        #     schedule.schedule[random_classroom_index][both_time_slots[1][time_slot_index]] = schedule.schedule[random_classroom_index][both_time_slots[0][time_slot_index]]
-        #     schedule.schedule[random_classroom_index][both_time_slots[0][time_slot_index]] = second_time_slot_course
+        # Find all classrooms hosting courses
+        used_classrooms_indices = []
+        for classroom in schedule.schedule:
+            for time_block in classroom:
+                if time_block != -1:
+                    used_classrooms_indices.append(schedule.schedule.index(classroom))
+
+        # Can't mutate if there aren't at least 2 courses that host courses
+        if len(used_classrooms_indices) < 2:
+            return
+
+        # Choose 2 used classrooms to mutate
+        classroom_index1, classroom_index2 = random.sample(used_classrooms_indices, 2)
+        classroom1, classroom2 = schedule.schedule[classroom_index1], schedule.schedule[classroom_index2]
+
+        # Determine which classrooms hosts fewer courses
+        lesser_courses_room, greater_courses_room = max([(classroom2, classroom1), (classroom1, classroom2)], key=lambda classroom: classroom[0].count(-1))
+        lesser_room_index, greater_room_index = ((classroom_index1, classroom_index2) if classroom1.count(-1) > classroom2.count(-1) else (classroom_index2, classroom_index1))
+
+        # Pick a random course to move to the other classroom
+        course_index, course = random.choice([(index, course) for index, course in enumerate(lesser_courses_room) if course != -1])
+
+        # Find an empty slot to move the course to
+        course_placement_index = random.choice([index for index, course in enumerate(greater_courses_room) if course == -1])
+        lesser_courses_room[course_index] = -1
+        greater_courses_room[course_placement_index] = course
+        schedule.schedule[lesser_room_index] = lesser_courses_room
+        schedule.schedule[greater_room_index] = greater_courses_room
 
     def create_single_offspring(self):
         """
@@ -273,7 +211,7 @@ class Optimizer:
         offspring = Schedule(self.course_list, self.classroom_list, self.instructor_list)
         offspring.schedule = self.crossover(parents)
         self.mutate(offspring)
-        print(offspring.display_phenotype())
+
         return offspring
 
     def form_next_generation(self):
