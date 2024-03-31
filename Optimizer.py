@@ -1,10 +1,7 @@
 import random
-from pathlib import Path
-
 import pandas as pd
-import chardet
 
-from ga_redo.Schedule import Schedule
+from Schedule import Schedule
 
 
 class Optimizer:
@@ -36,7 +33,6 @@ class Optimizer:
 
         # Find all unique professor names
         prof_names = df["SEC_FACULTY_INFO"].unique()
-        prof_dict = {}
         prof_dict = {name: df["SEC_SHORT_TITLE"][df["SEC_FACULTY_INFO"] == name].unique() for name in prof_names}
 
         return classroom_names, course_names, prof_dict
@@ -57,6 +53,10 @@ class Optimizer:
         @param: Schedule object to be evaluated
         @return: Fitness score for the Schedule object, with larger scores being better
         """
+        # Don't recalculate the fitness if it's already been calculated
+        if schedule.fitness != 0:
+            return schedule.fitness
+
         # Penalizes for using more classrooms
         num_classrooms_used = 0
         for classroom in schedule.schedule:
@@ -78,6 +78,7 @@ class Optimizer:
                 # Subtract a fitness point for every time an instructor is assigned more than once to a time block
                 if num_courses_taught > 1:
                     fitness -= 1
+        # print("Fitness after Penalizing Instructors: ", fitness)
 
         # Penalizes for not including all courses in the final schedule
         not_all_courses_penalty = 0
@@ -90,6 +91,7 @@ class Optimizer:
             if course_found:
                 continue
             fitness -= 1
+        # print("Fitness after Penalizing Not all Courses: ", fitness)
 
         # Penalizes for assigning a course to both MWF and Tth
         for classroom in schedule.schedule:
@@ -98,6 +100,7 @@ class Optimizer:
                     if monday_time_block == tuesday_time_block:
                         fitness -= 1
                         break
+        # print("Fitness after Penalizing All Days: ", fitness)
 
         schedule.fitness = fitness
         return fitness
@@ -229,6 +232,7 @@ class Optimizer:
             parents.append([self.calculate_fitness(schedule), schedule])
 
         sorted_by_fitness = sorted(parents + offspring, key=lambda x: x[0], reverse=True)
+        print(sorted_by_fitness[0][1].display_genotype())
         next_generation = [sorted_by_fitness[i][1] for i in range(self.POPULATION_SIZE)]
 
         self.population = next_generation
