@@ -2,9 +2,12 @@ import random
 
 
 class Schedule:
+    MONDAY_TIME_SLOTS = 10
+    TUESDAY_TIME_SLOTS = 7
+
     def __init__(self, course_list, classroom_list, instructor_list):
-        self.MONDAY_TIME_SLOTS = 9
-        self.TUESDAY_TIME_SLOTS = 4
+        self.MONDAY_TIME_SLOTS = 10
+        self.TUESDAY_TIME_SLOTS = 7
 
         self.course_list = course_list
         self.classroom_list = classroom_list
@@ -16,6 +19,9 @@ class Schedule:
         self.fitness = 0
 
     def create_genome(self):
+        # print("Number Courses: ", len(self.course_list))
+        # print("Number Instructors: ", len(self.instructor_list))
+        # print("Number Classrooms: ", len(self.classroom_list))
         schedule = [[-1] * self.num_time_slots for _ in range(len(self.classroom_list))]
         # Randomly assign courses to time slots and classrooms
         for course_id in range(len(self.course_list)):

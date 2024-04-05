@@ -1,6 +1,9 @@
 import random
 import pandas as pd
 
+from Classroom import Classroom
+from Course import Course
+from Instructor import Instructor
 from Schedule import Schedule
 
 
@@ -21,21 +24,37 @@ class Optimizer:
         self.total_fitness = 0
 
     def upload_data(self):
-        df = pd.read_excel("schedule.xlsx", engine="openpyxl")
+        classroom_data = pd.read_excel("classroom_info.xlsx", engine="openpyxl")
+        course_data = pd.read_excel("schedule.xlsx", engine="openpyxl").dropna(subset=['CSM_BLDG', 'CSM_ROOM'])
 
-        # Find all unique on-campus classrooms
-        location_data = df[["CSM_BLDG", "CSM_ROOM"]].dropna()
-        classroom_data = location_data[location_data['CSM_BLDG'] != "OFCP"]
-        classroom_names = (classroom_data["CSM_BLDG"] + "-" + classroom_data["CSM_ROOM"]).unique()
+        # Create classroom object for each room with known number of seats
+        classrooms_dict = {}
+        for index, row in classroom_data.iterrows():
+            room_name = row['Building Name'] + '-' + str(row['Room Number'])
+            classroom = Classroom(room_name, row['Number of Student Seats in Room'])
+            classrooms_dict[room_name] = classroom
+        classrooms_list = list(classrooms_dict.values())
 
-        # Find all unique on-campus course names
-        course_names = df["SEC_SHORT_TITLE"].unique()
+        # Create course object for each course currently located in one of the classrooms of known size
+        courses_list = []
+        instructors_dict = {}
+        # print(classroom_data['CSM_ROOM'])
+        for index, row in course_data.iterrows():
+            # Only use lecture courses in classrooms of known size
+            room_name = row['CSM_BLDG'] + '-' + str(row['CSM_ROOM'])
+            if row['CSM_INSTR_METHOD'] != "LEC" or room_name not in classrooms_dict.keys():
+                continue
+            instructor = Instructor(row['SEC_FACULTY_INFO'])
+            course = Course(row['SEC_SHORT_TITLE'], row['SEC_CAPACITY'], instructor)
+            courses_list.append(course)
 
-        # Find all unique professor names
-        prof_names = df["SEC_FACULTY_INFO"].unique()
-        prof_dict = {name: df["SEC_SHORT_TITLE"][df["SEC_FACULTY_INFO"] == name].unique() for name in prof_names}
+            # Create a new instructor if not already in the dictionary
+            if instructor.name not in instructors_dict.keys():
+                instructors_dict[instructor.name] = instructor
+        instructors_list = list(instructors_dict.values())
 
-        return classroom_names, course_names, prof_dict
+        print(classrooms_list, courses_list, instructors_list)
+        return classrooms_list, courses_list, instructors_list
 
     def form_population(self, pop_size: int):
         population = []
@@ -232,7 +251,7 @@ class Optimizer:
             parents.append([self.calculate_fitness(schedule), schedule])
 
         sorted_by_fitness = sorted(parents + offspring, key=lambda x: x[0], reverse=True)
-        print(sorted_by_fitness[0][1].display_genotype())
+        # print(sorted_by_fitness[0][1].display_genotype())
         next_generation = [sorted_by_fitness[i][1] for i in range(self.POPULATION_SIZE)]
 
         self.population = next_generation
