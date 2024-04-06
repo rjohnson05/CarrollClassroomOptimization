@@ -7,6 +7,21 @@ from Instructor import Instructor
 from Schedule import Schedule
 import sys
 
+"""
+Contains a genetic algorithm for creating an optimal course schedule for Carroll College. Course, classroom, and
+instructor data are imported from the two spreadsheets included in this project. Using this data, the algorithm works
+toward creating a schedule with the following goals:
+  - No instructor may teach more than one course during a single time block
+  - All courses must be included in the final schedule
+  - Courses may be assigned as either a MWF or Tth course, but not both
+  - Ideal schedules will use less classrooms
+
+As the algorithm is running, the average fitness score is displayed. Once the fitness scores have converged to the same
+score for five generations, the algorithm will end and display the final course schedule.
+
+Author: Ryan Johnson
+"""
+
 
 class Optimizer:
     def __init__(self):
@@ -27,7 +42,7 @@ class Optimizer:
         these different types of object are returned as a separate list. Note that only classrooms with a known number
         of seats are used. Similarly, only courses currently located in rooms with a known number of seats are used.
 
-        :return: list containing three lists - classrooms, courses, and instructors
+        :return: list containing three sublists - classrooms, courses, and instructors
         """
         classroom_data = pd.read_excel("classroom_info.xlsx", engine="openpyxl")
         course_data = pd.read_excel("schedule.xlsx", engine="openpyxl").dropna(subset=['CSM_BLDG', 'CSM_ROOM'])
@@ -59,21 +74,32 @@ class Optimizer:
         return classrooms_list, courses_list, instructors_list
 
     def form_population(self, pop_size: int):
+        """
+        Creates the specified number of schedule objects and places them together in a single list.
+
+        :param pop_size: Integer specifying how many individual schedules should be created
+        :return: List of schedule objects
+        """
         population = []
         for i in range(pop_size):
             schedule = Schedule(self.course_list, self.classroom_list, self.instructor_list)
             schedule.create_genome()
             population.append(schedule)
-        # print("Population Created")
         return population
 
     def calculate_fitness(self, schedule: Schedule):
         """
-        Calculates the "goodness" of a given schedule. Schedules are penalized for using more classrooms and for having
-        two courses in the same time blocks that are taught by the same instructor.
+        Calculates the "goodness" of a given schedule. A valid schedule will have a positive fitness score,
+        while a larger positive fitness score indicates that less classrooms are being used. Schedules are penalized
+        for the following:
+          - Using more classrooms
+          - Having instructors teaching more than one course during the same
+            time block
+          - Not containing all courses
+          - Assigning a course to both a MWF and Tth time slot
 
-        @param: Schedule object to be evaluated
-        @return: Fitness score for the Schedule object, with larger scores being better
+        @param schedule: Schedule object to be evaluated
+        @return: Fitness score for the Schedule object, with larger scores indicating better schedules
         """
         # Don't recalculate the fitness if it's already been calculated
         if schedule.fitness != 0:
@@ -101,7 +127,6 @@ class Optimizer:
                 # Subtract a fitness point for every time an instructor is assigned more than once to a time block
                 if num_courses_taught > 1:
                     fitness -= 1
-        # print("Fitness after Penalizing Instructors: ", fitness)
 
         # Penalizes for not including all courses in the final schedule
         for course in self.course_list:
@@ -113,7 +138,6 @@ class Optimizer:
             if course_found:
                 continue
             fitness -= 1
-        # print("Fitness after Penalizing Not all Courses: ", fitness)
 
         # Penalizes for assigning a course to both MWF and Tth
         for classroom in schedule.schedule:
@@ -123,15 +147,14 @@ class Optimizer:
                         # print(monday_time_block, tuesday_time_block)
                         fitness -= 1
                         break
-        # print("Fitness after Penalizing All Days: ", fitness)
 
         schedule.fitness = fitness
         return fitness
 
     def assign_selection_probs(self):
         """
-        Calculates the probability that each schedule the has of being selected for parenthood, based upon its fitness
-        level and the fitness of the population as a whole.
+        Calculates the probability that each schedule has of being selected for parenthood, based upon its fitness
+        score and the fitness of the population as a whole.
         """
         total_fitness = 0
         fitness_levels = []
@@ -150,16 +173,21 @@ class Optimizer:
             self.population[i].selection_prob = selection_prob
 
     def tournament_selection(self, size=3):
-        # Tournament selection: Randomly select 'size' schedules and return the most fit among them
+        """
+        Randomly selects the specified number of schedules from the population and chooses the most fit of these
+        schedules for parenthood
+        :param size: Number of schedules to randomly choose from the population
+        :return: Schedule that is most fit of the randomly selected schedules
+        """
         selected = random.sample(self.population, size)
         return max(selected, key=lambda x: self.calculate_fitness(x))
 
     def select_parents(self):
         """
-        Selects two parent schedules from the population. A random number probability is then chosen, and two parents
+        Selects two parent schedules from the population. A random probability is then chosen, and two parents
         are selected by roulette wheel selection. In this process, the population is looped through, stopping once the
-        sum of the selection probabilities of schedules seen thus far surpasses the randomly generated number. The schedule
-        stopped on is selected for parenthood.
+        sum of the selection probabilities seen thus far surpasses the randomly generated number. The schedule landed on
+        is selected for parenthood.
 
         :return: list of the two selected parents
         """
@@ -178,8 +206,10 @@ class Optimizer:
         :param parents: list containing two parent schedules
         :return: child genome, created by combining the genomes of the two parent schedules
         """
+        # Crossover doesn't occur (1 - CROSSOVER_RATE)% of the time
         if random.random() >= self.CROSSOVER_RATE:
             return parents[0].schedule
+
         parent1 = parents[0]
         parent2 = parents[1]
 
@@ -224,7 +254,8 @@ class Optimizer:
         lesser_courses_room = mutated_classrooms[0]
 
         # Pick a random course to move to the other classroom
-        course_index, course = random.choice([(index, course) for index, course in enumerate(lesser_courses_room.schedule) if course != -1])
+        course_index, course = random.choice(
+            [(index, course) for index, course in enumerate(lesser_courses_room.schedule) if course != -1])
         # Randomly choose courses until one is found that will fit in greater_used_room (or quit after 10 iterations)
         for i in range(10):
             if course.enrolled > greater_courses_room.size:
@@ -232,7 +263,8 @@ class Optimizer:
                     [(index, course) for index, course in enumerate(lesser_courses_room.schedule) if course != -1])
 
         # Find an empty slot to move the course to
-        course_placement_index = random.choice([index for index, course in enumerate(greater_courses_room.schedule) if course == -1])
+        course_placement_index = random.choice(
+            [index for index, course in enumerate(greater_courses_room.schedule) if course == -1])
         lesser_courses_room.schedule[course_index] = -1
         greater_courses_room.schedule[course_placement_index] = course
 
@@ -240,7 +272,7 @@ class Optimizer:
         """
         Creates a new child schedule by mixing the genomes of two parent schedules.
 
-        :return: Child Schedule object, having been mutated already
+        :return: Schedule object, created from two parents, having been mutated already
         """
         parents = self.select_parents()
         offspring = Schedule(self.course_list, self.classroom_list, self.instructor_list)
@@ -250,6 +282,12 @@ class Optimizer:
         return offspring
 
     def form_next_generation(self):
+        """
+        Creates a child population of schedules of the same size as the parent population. The child and parent schedule
+        lists are combined and sorted based on their fitness score. From this combined list, the schedules with the best
+        fitness scores are selected to be the next generation, selecting the same number of schedules as in the pevious
+        generation.
+        """
         # Calculate the fitness score for each schedule in the population
         self.assign_selection_probs()
 
@@ -259,17 +297,22 @@ class Optimizer:
             offspring_schedule = self.create_single_offspring()
             offspring.append([self.calculate_fitness(offspring_schedule), offspring_schedule])
 
+        # Add the parent schedules along with their fitness score
         parents = []
         for schedule in self.population:
             parents.append([self.calculate_fitness(schedule), schedule])
 
+        # Sort by fitness score and select the most fit of the parent/child schedules for the next generation
         sorted_by_fitness = sorted(parents + offspring, key=lambda x: x[0], reverse=True)
-        # print(sorted_by_fitness[0][1].display_genotype())
         next_generation = [sorted_by_fitness[i][1] for i in range(self.POPULATION_SIZE)]
 
         self.population = next_generation
 
     def run_optimization(self):
+        """
+        Runs the genetic algorithm until the last five generations have the same fitness score. Upon completion, the
+        final score is displayed.
+        """
         generation_num = 0
         fitness_scores = []
         converged = False
