@@ -5,25 +5,30 @@ from Classroom import Classroom
 from Course import Course
 from Instructor import Instructor
 from Schedule import Schedule
+import sys
 
 
 class Optimizer:
     def __init__(self):
-        self.POPULATION_SIZE = 20
-        self.CROSSOVER_RATE = 0.8
-        self.MUTATION_RATE = 0.2
+        self.POPULATION_SIZE = 500
+        self.CROSSOVER_RATE = 0.001
+        self.MUTATION_RATE = 0.9
 
         self.classroom_list, self.course_list, self.instructor_list = self.upload_data()
-
-        # self.classroom_list = ['SIMP-120', 'SIMP-200', 'SIMP-300', 'SIMP-400', 'OCON-123', 'STCH-343', 'STCH-234']
-        # self.course_list = ['CS-1', 'CS-2', 'CS-3', 'CS-4', 'CS-5', 'CS61', 'CS-7']
-        # self.instructor_list = {"Nate Williams": [1, 2], "Ted Wendt": [3, 4], "Jodi Fasteen": [5, 6, 7]}
 
         self.population = self.form_population(self.POPULATION_SIZE)
         self.average_fitness = 0
         self.total_fitness = 0
 
     def upload_data(self):
+        """
+        Takes data from two Excel spreadsheets: one with classroom info and the other with course info. The data from
+        these spreadsheets is combined to create the classroom, course, and instructor objects for scheduling. Each of
+        these different types of object are returned as a separate list. Note that only classrooms with a known number
+        of seats are used. Similarly, only courses currently located in rooms with a known number of seats are used.
+
+        :return: list containing three lists - classrooms, courses, and instructors
+        """
         classroom_data = pd.read_excel("classroom_info.xlsx", engine="openpyxl")
         course_data = pd.read_excel("schedule.xlsx", engine="openpyxl").dropna(subset=['CSM_BLDG', 'CSM_ROOM'])
 
@@ -38,7 +43,6 @@ class Optimizer:
         # Create course object for each course currently located in one of the classrooms of known size
         courses_list = []
         instructors_dict = {}
-        # print(classroom_data['CSM_ROOM'])
         for index, row in course_data.iterrows():
             # Only use lecture courses in classrooms of known size
             room_name = row['CSM_BLDG'] + '-' + str(row['CSM_ROOM'])
@@ -52,8 +56,6 @@ class Optimizer:
             if instructor.name not in instructors_dict.keys():
                 instructors_dict[instructor.name] = instructor
         instructors_list = list(instructors_dict.values())
-
-        print(classrooms_list, courses_list, instructors_list)
         return classrooms_list, courses_list, instructors_list
 
     def form_population(self, pop_size: int):
@@ -62,6 +64,7 @@ class Optimizer:
             schedule = Schedule(self.course_list, self.classroom_list, self.instructor_list)
             schedule.create_genome()
             population.append(schedule)
+        # print("Population Created")
         return population
 
     def calculate_fitness(self, schedule: Schedule):
@@ -79,20 +82,21 @@ class Optimizer:
         # Penalizes for using more classrooms
         num_classrooms_used = 0
         for classroom in schedule.schedule:
-            for time_block in classroom:
+            for time_block in classroom.schedule:
                 if time_block != -1:
                     num_classrooms_used += 1
                     break
         fitness = 1 / num_classrooms_used
 
         # Penalizes for assigning an instructor to a time block more than once
-        for instructor, course_list in schedule.instructor_list.items():
+        for instructor in schedule.instructor_list:
+            course_list = instructor.courses
             # Find the number of courses taught by an instructor during a single time block. Ideal solutions should
             # have a value of 1.
             for i in range(schedule.MONDAY_TIME_SLOTS + schedule.TUESDAY_TIME_SLOTS):
                 num_courses_taught = 0
                 for classroom in schedule.schedule:
-                    if classroom[i] in course_list:
+                    if classroom.schedule[i] in course_list:
                         num_courses_taught += 1
                 # Subtract a fitness point for every time an instructor is assigned more than once to a time block
                 if num_courses_taught > 1:
@@ -100,11 +104,10 @@ class Optimizer:
         # print("Fitness after Penalizing Instructors: ", fitness)
 
         # Penalizes for not including all courses in the final schedule
-        not_all_courses_penalty = 0
-        for course_id in range(len(self.course_list)):
+        for course in self.course_list:
             course_found = False
             for classroom in schedule.schedule:
-                if course_id in classroom:
+                if course in classroom.schedule:
                     course_found = True
                     break
             if course_found:
@@ -114,9 +117,10 @@ class Optimizer:
 
         # Penalizes for assigning a course to both MWF and Tth
         for classroom in schedule.schedule:
-            for monday_time_block in classroom[0:schedule.MONDAY_TIME_SLOTS]:
-                for tuesday_time_block in classroom[schedule.MONDAY_TIME_SLOTS: schedule.TUESDAY_TIME_SLOTS]:
-                    if monday_time_block == tuesday_time_block:
+            for monday_time_block in classroom.schedule[:schedule.MONDAY_TIME_SLOTS]:
+                for tuesday_time_block in classroom.schedule[schedule.MONDAY_TIME_SLOTS:]:
+                    if (monday_time_block == tuesday_time_block) and (monday_time_block != -1):
+                        # print(monday_time_block, tuesday_time_block)
                         fitness -= 1
                         break
         # print("Fitness after Penalizing All Days: ", fitness)
@@ -195,33 +199,42 @@ class Optimizer:
             return
 
         # Find all classrooms hosting courses
-        used_classrooms_indices = []
+        used_classrooms = []
         for classroom in schedule.schedule:
-            for time_block in classroom:
+            for time_block in classroom.schedule:
                 if time_block != -1:
-                    used_classrooms_indices.append(schedule.schedule.index(classroom))
+                    used_classrooms.append(classroom)
 
-        # Can't mutate if there aren't at least 2 courses that host courses
-        if len(used_classrooms_indices) < 2:
+        # Can't mutate if there aren't at least 2 classrooms that have courses
+        if len(used_classrooms) < 2:
             return
 
         # Choose 2 used classrooms to mutate
-        classroom_index1, classroom_index2 = random.sample(used_classrooms_indices, 2)
-        classroom1, classroom2 = schedule.schedule[classroom_index1], schedule.schedule[classroom_index2]
+        mutated_classrooms = random.sample(used_classrooms, 2)
 
-        # Determine which classrooms hosts fewer courses
-        lesser_courses_room, greater_courses_room = max([(classroom2, classroom1), (classroom1, classroom2)], key=lambda classroom: classroom[0].count(-1))
-        lesser_room_index, greater_room_index = ((classroom_index1, classroom_index2) if classroom1.count(-1) > classroom2.count(-1) else (classroom_index2, classroom_index1))
+        # Determine which classrooms hosts more courses
+        greater_courses_num = 0
+        greater_courses_room = None
+        for classroom in mutated_classrooms:
+            num_courses = classroom.schedule.count(-1)
+            if num_courses > greater_courses_num:
+                greater_courses_num = num_courses
+                greater_courses_room = classroom
+        mutated_classrooms.remove(greater_courses_room)
+        lesser_courses_room = mutated_classrooms[0]
 
         # Pick a random course to move to the other classroom
-        course_index, course = random.choice([(index, course) for index, course in enumerate(lesser_courses_room) if course != -1])
+        course_index, course = random.choice([(index, course) for index, course in enumerate(lesser_courses_room.schedule) if course != -1])
+        # Randomly choose courses until one is found that will fit in greater_used_room (or quit after 10 iterations)
+        for i in range(10):
+            if course.enrolled > greater_courses_room.size:
+                course_index, course = random.choice(
+                    [(index, course) for index, course in enumerate(lesser_courses_room.schedule) if course != -1])
 
         # Find an empty slot to move the course to
-        course_placement_index = random.choice([index for index, course in enumerate(greater_courses_room) if course == -1])
-        lesser_courses_room[course_index] = -1
-        greater_courses_room[course_placement_index] = course
-        schedule.schedule[lesser_room_index] = lesser_courses_room
-        schedule.schedule[greater_room_index] = greater_courses_room
+        course_placement_index = random.choice([index for index, course in enumerate(greater_courses_room.schedule) if course == -1])
+        lesser_courses_room.schedule[course_index] = -1
+        greater_courses_room.schedule[course_placement_index] = course
 
     def create_single_offspring(self):
         """
@@ -258,12 +271,18 @@ class Optimizer:
 
     def run_optimization(self):
         generation_num = 0
-        for i in range(100):
-            self.form_next_generation()
+        fitness_scores = []
+        converged = False
+        while not converged:
+            last_five_scores = fitness_scores[-5:] if len(fitness_scores) >= 5 else []
+            converged = True if len(set(last_five_scores)) == 1 else False
             generation_num += 1
-            print(f"Generation {i + 1}  -  Fitness Score: {self.average_fitness}")
-        print("Final Schedule:"
-              f"{self.population[0].display_phenotype()}")
+            self.form_next_generation()
+            fitness_scores.append(self.average_fitness)
+            print(f"Generation {generation_num}  -  Fitness Score: {self.average_fitness}")
+
+        print("\n######  FINAL SCHEDULE  ######")
+        print(self.population[0].display_phenotype())
 
 
 if __name__ == "__main__":

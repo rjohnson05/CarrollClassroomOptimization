@@ -5,9 +5,10 @@ class Classroom:
     def __init__(self, name, size):
         self.name = name
         self.size = size
-        self.schedule = self.create_empty_schedule()
+        self.schedule = [-1] * (Schedule.MONDAY_TIME_SLOTS + Schedule.TUESDAY_TIME_SLOTS)
 
-    def create_empty_schedule(self):
-        monday_blocks = [[-1] * Schedule.MONDAY_TIME_SLOTS]
-        tuesday_blocks = [-1 * Schedule.TUESDAY_TIME_SLOTS]
-        return [monday_blocks, tuesday_blocks]
+    def display_schedule(self):
+        print(f"{self.name}: {self.schedule}")
+
+    def __str__(self):
+        return self.name
