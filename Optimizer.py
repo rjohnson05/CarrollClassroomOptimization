@@ -5,7 +5,6 @@ from Classroom import Classroom
 from Course import Course
 from Instructor import Instructor
 from Schedule import Schedule
-import sys
 
 """
 Contains a genetic algorithm for creating an optimal course schedule for Carroll College. Course, classroom, and
