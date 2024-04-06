@@ -43,8 +43,8 @@ class Optimizer:
 
         :return: list containing three sublists - classrooms, courses, and instructors
         """
-        classroom_data = pd.read_excel("classroom_info.xlsx", engine="openpyxl")
-        course_data = pd.read_excel("schedule.xlsx", engine="openpyxl").dropna(subset=['CSM_BLDG', 'CSM_ROOM'])
+        classroom_data = pd.read_excel("../../../excel/classroom_info.xlsx", engine="openpyxl")
+        course_data = pd.read_excel("../../../excel/schedule.xlsx", engine="openpyxl").dropna(subset=['CSM_BLDG', 'CSM_ROOM'])
 
         # Create classroom object for each room with known number of seats
         classrooms_dict = {}
@@ -325,7 +325,6 @@ class Optimizer:
 
         print("\n######  FINAL SCHEDULE  ######")
         print(self.population[0].display_phenotype())
-
 
 if __name__ == "__main__":
     opt = Optimizer()
