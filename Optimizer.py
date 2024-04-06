@@ -43,8 +43,8 @@ class Optimizer:
 
         :return: list containing three sublists - classrooms, courses, and instructors
         """
-        classroom_data = pd.read_excel("../../../excel/classroom_info.xlsx", engine="openpyxl")
-        course_data = pd.read_excel("../../../excel/schedule.xlsx", engine="openpyxl").dropna(subset=['CSM_BLDG', 'CSM_ROOM'])
+        classroom_data = pd.read_excel("excel/classroom_info.xlsx", engine="openpyxl")
+        course_data = pd.read_excel("excel/schedule.xlsx", engine="openpyxl").dropna(subset=['CSM_BLDG', 'CSM_ROOM'])
 
         # Create classroom object for each room with known number of seats
         classrooms_dict = {}
@@ -184,7 +184,7 @@ class Optimizer:
     def select_parents(self):
         """
         Selects two parent schedules from the population. A random probability is then chosen, and two parents
-        are selected by roulette wheel selection. In this process, the population is looped through, stopping once the
+        are selected by tournament selection. In this process, the population is looped through, stopping once the
         sum of the selection probabilities seen thus far surpasses the randomly generated number. The schedule landed on
         is selected for parenthood.
 
