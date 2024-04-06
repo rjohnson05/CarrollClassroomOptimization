@@ -15,7 +15,5 @@ then mutated by moving a course from a lesser-used classroom to a greater-used c
 this same manner. Once all children have been created, the most fit schedules (including both the original and child schedules) are chosen to form the next generation. The algorithm will continue this process until
 the average fitness score of a generation converges upon the same score for five generations. Upon completion, the final course schedule is displayed.
 
-To run this algorithm, clone this repository to your local machine by running *git clone https://github.com/rjohnson05/CarrollClassroomOptimization/tree/main* on your command-line. Next, ensure that you have Python installed
-on your machine by running *python --version*. If you have Python installed, you should see something like *Python 3.12.1*, although the version number might differ. If this command throws an error, you can install
-Python [here](https://www.python.org/downloads/). Once you have Python installed, navigate to the root directory of this project and run *pip install -r requirements.txt* to install all necessary dependencies. 
-Finally, run *py Optimizer.py* to start the algorithm.
+To run this algorithm, clone this repository to your local machine by running `git clone https://github.com/rjohnson05/CarrollClassroomOptimization`
+on your command-line. Next, ensure that you have Python installed on your machine by running `python --version`. If you have Python installed, you should see something like `Python 3.12.1`, although the version number might differ. If this command throws an error, you can install Python [here](https://www.python.org/downloads/). Once you have Python installed, navigate to the root directory of this project and run `pip install -r requirements.txt` to install all necessary dependencies. Finally, run `py Optimizer.py` to start the algorithm.
