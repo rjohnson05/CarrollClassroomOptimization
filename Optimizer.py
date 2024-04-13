@@ -150,10 +150,10 @@ class Optimizer:
         schedule.fitness = fitness
         return fitness
 
-    def assign_selection_probs(self):
+    def calculated_average_fitness(self):
         """
-        Calculates the probability that each schedule has of being selected for parenthood, based upon its fitness
-        score and the fitness of the population as a whole.
+        Calculates the average fitness score across the population as a whole. Used for determining whether the algorithm
+        has converged onto a single fitness score yet.
         """
         total_fitness = 0
         fitness_levels = []
@@ -165,11 +165,6 @@ class Optimizer:
         # Save the fitness of the population as a whole to be used for analysis purposes
         self.total_fitness = total_fitness
         self.average_fitness = total_fitness / len(self.population)
-
-        # Calculate the probability that each individual is chosen for parenthood
-        for i in range(len(fitness_levels)):
-            selection_prob = fitness_levels[i] / total_fitness
-            self.population[i].selection_prob = selection_prob
 
     def tournament_selection(self, size=3):
         """
@@ -288,7 +283,7 @@ class Optimizer:
         generation.
         """
         # Calculate the fitness score for each schedule in the population
-        self.assign_selection_probs()
+        self.calculated_average_fitness()
 
         # Create a population of offspring
         offspring = []
