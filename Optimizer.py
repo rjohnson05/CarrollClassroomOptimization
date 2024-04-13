@@ -24,6 +24,7 @@ Author: Ryan Johnson
 
 class Optimizer:
     def __init__(self):
+        self.CONVERGENCE_NUM = 3
         self.POPULATION_SIZE = 500
         self.CROSSOVER_RATE = 0.001
         self.MUTATION_RATE = 0.9
@@ -311,8 +312,8 @@ class Optimizer:
         fitness_scores = []
         converged = False
         while not converged:
-            last_five_scores = fitness_scores[-5:] if len(fitness_scores) >= 5 else []
-            converged = True if len(set(last_five_scores)) == 1 else False
+            last_scores = fitness_scores[-self.CONVERGENCE_NUM:] if len(fitness_scores) >= self.CONVERGENCE_NUM else []
+            converged = True if len(set(last_scores)) == 1 else False
             generation_num += 1
             self.form_next_generation()
             fitness_scores.append(self.average_fitness)
